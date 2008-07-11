@@ -31,46 +31,50 @@
 #		BLOCKS
 	:block
 	#-----------------tags-----------------------#block alignment-----#attribute modifers------------------
-	/^\(\(h[1-6]\)\|\(bq\)\|\(p\)\|\(fn[0-9]\+\)\)\(\(<>\)\?\|[><=]\?\)\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\. .*/ {
+	/^\(\(h[1-6]\)\|\(bq\)\|\(p\)\|\(fn[0-9]\+\)\)\(\(<>\)\?\|[)><=]\?\)\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\. .*/ {
 		N
 		# RULES: No blocks within blocks or inlines.
 			s/^h\([1-6]\)\(\(<>\)\?\|[><=]\?\)\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\)\. \(\(.*\)\|\(\n\)\)*\n\(^$\)/<h\1\2\4>\9<\/h\1>\n/
-			s/^bq\(\(<>\)\?\|[><=]\?\)\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\)\. \(.*\|\n\)\n\(^$\)/<blockquote><p\1\3>\8<\/p><\/blockquote>\n/
-			s/^p\(\(<>\)\?\|[><=]\?\)\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\)\. \(.*\|\n\)\n\(^$\)/<p\1\3>\8<\/p>\n/
+			s/^bq\(\(<>\)\?\|[)><=]\?\)\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\)\. \(.*\|\n\)\n\(^$\)/<blockquote><p\1\3>\8<\/p><\/blockquote>\n/
+			s/^p\(\(<>\)\?\|[)><=]\?\)\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\)\. \(.*\|\n\)\n\(^$\)/<p\1\3>\8<\/p>\n/
 			s/^fn\([0-9]\+\)\(\(<>\)\?\|[><=]\?\)\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\)\. \(.*\|\n\)\n\(^$\)/<p\2 id="\1"\4><sup>\1<\/sup>\9<\/p>\n/
-			/^\(<blockquote>\)\?<\(\(h[1-6]\)\|\(p\)\)\(\(<>\)\|[><=]\)[^>]*>/ {	
-				s/^\(<blockquote>\)\?<\([^<=>]\+\)=\([^<=>]*\)>/\1<\2 style="text-align:center;"\3>/
-				s/^\(<blockquote>\)\?<\([^<>]\+\)<>\([^<>]*\)>/\1<\2 style="text-align:justify;"\3>/
-				s/^\(<blockquote>\)\?<\([^<>]\+\)<\([^<>]*\)>/\1<\2 style="text-align:left;"\3>/
-				s/^\(<blockquote>\)\?<\([^<>]\+\)>\([^<>]*\)>/\1<\2 style="text-align:right;"\3>/	
+			/^\(<blockquote>\)\?<\(\(h[1-6]\)\|\(p\)\)\(\(<>\)\|[(><)=]\)[^>]*>/ {
+				:block_mods
+				s/\(<blockquote>\)\?<\([^<=>]\+\)=\([^<=>]*\)>/\1<\2 style="text-align:center;"\3>/
+				s/\(<blockquote>\)\?<\([^<>]\+\)<>\([^<>]*\)>/\1<\2 style="text-align:justify;"\3>/
+				s/\(<blockquote>\)\?<\([^<>]\+\)<\([^<>]*\)>/\1<\2 style="text-align:left;"\3>/
+				s/\(<blockquote>\)\?<\([^<>]\+\)>\([^<>]*\)>/\1<\2 style="text-align:right;"\3>/	
+				s/\(<blockquote>\)\?<\([^<)>]\+\))\([^<)>]*\)>/\1<\2 style="text-indent:1cm;"\3>/
+				bline_breaks
 			}
 			bblock
 	}
-
 #		LISTS
 
-	:lists
+	:ulists
 	/^\* [^ ]/ {
 		N
 		/\n$/ {
 			s/^/<ul>\n\n/
 			s/\n\*\([*]*\) \([^\n]*\)/<li>\1 \2 <\/li>\n/g
 			s/\n$/<\/ul>/
-			:srlistsret
-			/<li>\*/ {		
-				bsrlists
+			:SR_ulists_RET
+			/<li>\*/ {
+				bSR_ulists
 			}
 
-			blinebreaks
+			bline_breaks
 		}
-		blists
+		bulists
 	}
+
 #	Subroutine of lists that handles descendants
-	btables
-	:srlists
+#This should be skipped if ulist has been parsed.
+	bolists
+	:SR_ulists
 	s/\(<\/li>\|<ul>\)\n<li>\*/<ul>\n<li>!/
 	s/<ul>\n<li>!\(.*\)<li>\* \([^\n]*\)<\/li>/<ul>\n<li>\1<li> \2<\/li><\/ul><\/li>/
-	
+
 #	End one item hierarchy
 	/<li>!/ {
 		s/<li>! \([^\n]*\) <\/li>/<li> \1 <\/li><\/ul><\/li>/
@@ -78,7 +82,44 @@
 
 	s/<li>!/<li>/g
 	s/<li>\*/<li>/g
-	bsrlistsret
+	bSR_ulists_RET
+
+#	Ordered Lists
+
+	:olists
+	/^# [^ ]/ {
+		N
+		/\n$/ {
+			s/^/<ol>\n\n/
+			s/\n#\(#*\) \([^\n]*\)/<li>\1 \2 <\/li>\n/g
+			s/\n$/<\/ol>/
+			:SR_olists_RET
+			/<li>#/ {
+				bSR_olists
+			}
+
+			bline_breaks
+		}
+		bolists
+	}
+
+#	Subroutine of lists that handles descendants
+#	This should skip further down if ollists has been parsed.
+	btables
+
+	:SR_olists
+	s/\(<\/li>\|<ol>\)\n<li>#/<ol>\n<li>!/
+	s/<ol>\n<li>!\(.*\)<li># \([^\n]*\)<\/li>/<ol>\n<li>\1<li> \2<\/li><\/ol><\/li>/
+
+#	End one item hierarchy
+	/<li>!/ {
+		s/<li>! \([^\n]*\) <\/li>/<li> \1 <\/li><\/ol><\/li>/
+	}
+
+	s/<li>!/<li>/g
+	s/<li>#/<li>/g
+	bSR_olists_RET
+
 
 #		TABLES
 
@@ -86,11 +127,26 @@
 	/^|/ {
 		N
 		/\n$/ {
+#	Create table structure
 			s/^|/<table><tr><td>/
 			s/|\n$/<\/td><\/tr><\/table>/
 			s/|\n|/<\/td><\/tr>\n<tr><td>/g
 			s/|/<\/td><td>/g
-			blinebreaks
+#	Modifiers
+#	Need to add table and row modifiers.
+#	Valign is not supported.
+			s/<td>\(\({[^<]\+}\)\|\(([^<]\+)\)\|\(\[[^<]\+\]\)\)*\. /<td\1>/g
+			s/<td\([^>]*\)>\\\([1-9]\+\)\. /<td colspan="\2"\1>/g
+			s/<td\([^>]*\)>\/\([1-9]\+\)\. /<td rowspan="\2"\1>/g
+			
+			s/<td\([^>]*\)>_\. \([^<]*\)<\/td>/<th\1>\2<\/th>/g	
+#		Table block modifieres not yet supported, cause more problems
+#		than they're worth. All of modifiers may be removed.
+#			/<td>\(\(<>\)\?\|[><=)]\?\)\. / {
+#				s/<td>\(\(<>\)\?\|[><=)]\?\)\. /<td\1>/g
+#				bblock_mods
+#			}
+			bline_breaks
 		}
 		btables
 	}
@@ -104,7 +160,7 @@
 	}
 
 #		LINE BREAKS
-	:linebreaks	
+	:line_breaks	
 	s/\([^>]\)\n/\1<br\/>\n/g
 
 #		EXTRA
