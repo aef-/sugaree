@@ -13,9 +13,9 @@
 # By C.Dotty (c.dotty@catch-colt.com)
 #  http://dev.catch-colt.com/sugaree
 ################################################
-
+# 
 #		CODE/PRE (Unformated)
-#  Use a beautifier if you want pretty code. I'm just a parsa!
+#  Use sugaree/beautifier if you want pretty code. I'm just a parsa!
 	:noformat
 	/<code>\(.*\)/ {
 		N
@@ -50,75 +50,64 @@
 			bblock
 	}
 #		LISTS
+# unorders and ordered
+# best case O(1)
+# worst case O(n^2/2)
 
-	:ulists
-	/^\* [^ ]/ {
+	:lists
+#/^\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)
+	/^[*#] / {
 		N
 		/\n$/ {
-			s/^/<ul>\n\n/
-			s/\n\*\([*]*\) \([^\n]*\)/<li>\1 \2 <\/li>\n/g
-			s/\n$/<\/ul>/
-			:SR_ulists_RET
-			/<li>\*/ {
-				bSR_ulists
+#	Grouping an ENTIRE block in regexp felt oddly wrong to me. Correct me if I'm wrong; ignore any contradictions.
+			/^\*/ {
+				s/^\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\n\)\?/<ul\2>\n/
+				s/$/<\/ul>\n/
 			}
-
+			/^#/ {
+				s/^\(\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\n\)\?/<ol\2>\n/
+				s/$/<\/ol>\n/
+			}
+			
+			s/\n\(#\|\*\)\([*#]*\) \([^\n]*\)/\n<li>\2 \3 <\/li>/g				
+			
+			:SR_lists_RET
+			/<li>[#*] / {
+				bSR_lists
+			}
 			bline_breaks
 		}
-		bulists
+		blists
 	}
 
 #	Subroutine of lists that handles descendants
-#This should be skipped if ulist has been parsed.
-	bolists
-	:SR_ulists
-	s/\(<\/li>\|<ul>\)\n<li>\*/<ul>\n<li>!/
-	s/<ul>\n<li>!\(.*\)<li>\* \([^\n]*\)<\/li>/<ul>\n<li>\1<li> \2<\/li><\/ul><\/li>/
-
-#	End one item hierarchy
-	/<li>!/ {
-		s/<li>! \([^\n]*\) <\/li>/<li> \1 <\/li><\/ul><\/li>/
-	}
-
-	s/<li>!/<li>/g
-	s/<li>\*/<li>/g
-	bSR_ulists_RET
-
-#	Ordered Lists
-
-	:olists
-	/^# [^ ]/ {
-		N
-		/\n$/ {
-			s/^/<ol>\n\n/
-			s/\n#\(#*\) \([^\n]*\)/<li>\1 \2 <\/li>\n/g
-			s/\n$/<\/ol>/
-			:SR_olists_RET
-			/<li>#/ {
-				bSR_olists
-			}
-
-			bline_breaks
-		}
-		bolists
-	}
-
-#	Subroutine of lists that handles descendants
-#	This should skip further down if ollists has been parsed.
 	btables
 
-	:SR_olists
-	s/\(<\/li>\|<ol>\)\n<li>#/<ol>\n<li>!/
-	s/<ol>\n<li>!\(.*\)<li># \([^\n]*\)<\/li>/<ol>\n<li>\1<li> \2<\/li><\/ol><\/li>/
+	:SR_lists
+#	Ordered lists. (There is no pragmatically refactoring these suckers: if </li> there's no way of knowing whether it's ordered or unordered.
+#		Note: nothing I say or do is 100% correct.
+	s/<li> \([^\n]*\) \(<\/li>\|<ol>\)\n<li>#\+/<li> \1 <ol>\n<li>!/g
+#	End one item hierarchies
+	s/<li>! \([^\n]*\) <\/li>\n\(<\/ol>\|<\/ul>\|<li> \)/<li> \1 <\/li>\n<\/ol><\/li>\n\2/g
+	
+#	Unordered lists.
+	s/<li> \([^\n]*\) \(<\/li>\|<ul>\)\n<li>\*\+/<li> \1 <ul>\n<li>!/g
+#	End one item hierarchies
+	s/<li>! \([^\n]*\) <\/li>\n\(<\/ul>\|<\/ol>\|<li> \)/<li> \1 <\/li>\n<\/ul><\/li>\n\2/g
 
-#	End one item hierarchy
-	/<li>!/ {
-		s/<li>! \([^\n]*\) <\/li>/<li> \1 <\/li><\/ol><\/li>/
+	:LP_lists_closetags
+
+	s/<\([uo]\)l>\n<li>! \([^\n]*\)<\/li>\n\(\(<li>[*#]\+ [^\n]\+<\/li>\n\)\+\)\(\(<li> .* <\/li>\)\|\(<\/[uo]l><\/li>\)\|\(<\/[uo]l>\n$\)\)/<\1l>\n<li> \2 <\/li>\n\3<\/\1l><\/li>\n\5/
+
+#	Global for the above line won't work since part of the beginning of the next regexp is the part of the end of the current regexp :-(
+	/<li>!/ {	
+		bLP_lists_closetags
 	}
 
-	s/<li>!/<li>/g
 	s/<li>#/<li>/g
-	bSR_olists_RET
+	s/<li>\*/<li>/g
+
+	bSR_lists_RET
 
 
 #		TABLES
@@ -153,7 +142,7 @@
 
 #		PARAGRAPHS (loitering text)
 	:paragraphs
-	/^\(\(<\(\(h[1-6]\)\|\(blockquote\)\|p\|code\|pre\|table\).*>\)\|\(^$\)\)/! {
+	/^\(<\(\(h[1-6]\)\|blockquote\|p\|code\|pre\|table).*>\)\|\(^$\)\)/! {
 		N
 		s/\(\(.*\|\n\)*\)\n\(^$\)/<p>\1<\/p>\n/
 		bparagraphs
@@ -167,13 +156,13 @@
 #  Footnote
 	s/\([A-Za-z0-9]\)\[\([0-9]\+\)\]/\1<a href="#fn\2"><sup>\2<\/sup><\/a>/g
 #  Image Links
-	s/!\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\([^ ]\+.*\)\((\(\+*\))\)\?!:\([^ ]\+\)/<a href="\8"><img src="\5" alt="\7" title="\7"\1\/><\/a>/g
-#  Images
-	s/!\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\([^ ]\+.*\)\((\(.\+\))\)\?!/<img src="\5" alt="\7" title="\7"\1\/>/g
+	s/!\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\([A-Za-z0-9:#/.-]\)\((\(\+*\))\)\?!:\([A-Za-z0-9:#/.-]\+\)/<a href="\8"><img src="\5" alt="\7" title="\7"\1\/><\/a>/g
+#	Images
+	s/!\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\([A-Za-z0-9:#/.-]\+\)\((\(.\+\))\)\?!/<img src="\5" alt="\7" title="\7" \1\/>/g
 #  Hypertext Links
-	s/"\([^\n ]\+[^"]*\)":\([A-Za-z:#/-]\+\)/<a href="\2">\1<\/a>/g
+	s/"\([^\n ]\+[^"]*\)":\([A-Za-z0-9:#/.-]\+\)/<a href="\2">\1<\/a>/g
 
-#  Code Far too many conflicts for this to be pragmatically used.
+#  Code Far too many conflicts for this to be pragmatically implemented.
 #	s/@\(\({.\+}\)\|\((.\+)\)\|\(\[.\+\]\)\)*\([^\n]*\)@/<code\1>\5<\/code>/g
 	
 
@@ -214,7 +203,7 @@
 
 #		ATTRIBUTES
 :attributes
-	/<[^ ].*\(\((.\+)\)\|\({.\+}\)\|\(\[.\+\]\)\)\?.*>/{
+/<[^ ].*\(\((.\+)\)\|\({.\+}\)\|\(\[.\+\]\)\)\?.*>/{
 #>< constraints are done for multiline text in blocks where a word may appear like an attribute.
 		s/<\([^><]*\)(#\([^><]\+\))\([^><]*\)>/<\1 id="\2"\3>/g
 		s/<\([^><]*\)(\([^><]\+\))\([^><]*\)>/<\1 class="\2"\3>/g
